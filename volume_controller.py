@@ -29,5 +29,7 @@ class VolumeController:
         for s in sessions:
             if s.State != 0:  # 0 = inactive
                 name = s.Process.name() if s.Process else "System Sounds"
+                # Capitalize first letter
+                name = name.capitalize()
                 apps.append((name, s))
         return apps

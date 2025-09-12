@@ -24,19 +24,20 @@ class MainWindow(QMainWindow):
         self.volume_controller = VolumeController()
         self.mixer_window = None
         self.last_position = None
+        self.is_position_locked = False  # Add position lock state
         
         # Initialize knob position with -120 degree offset
         self.rotation = (self.volume_controller.get_master_volume() * 270) - 120
         
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton and not self.is_position_locked:
             self.last_position = event.globalPosition().toPoint()
         elif event.button() == Qt.MouseButton.RightButton:
             print("Right click detected")  # Debug print
             self.show_mixer()
             
     def mouseMoveEvent(self, event):
-        if self.last_position:
+        if self.last_position and not self.is_position_locked:
             delta = event.globalPosition().toPoint() - self.last_position
             self.move(self.pos() + delta)
             self.last_position = event.globalPosition().toPoint()
