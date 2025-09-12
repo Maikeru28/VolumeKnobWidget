@@ -16,9 +16,9 @@ def main():
     exit_action = menu.addAction("Exit")
     tray.setContextMenu(menu)
     
-    # Create main window
-    window = MainWindow()
-    window.show()  # Show the window initially
+    # Create main window and pass tray reference
+    window = MainWindow(tray)  # Pass tray to MainWindow
+    window.show()
     
     # Connect menu actions
     show_action.triggered.connect(window.show)

@@ -6,8 +6,9 @@ from volume_controller import VolumeController
 from mixer_window import MixerWindow
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, tray):
         super().__init__()
+        self.tray = tray  # Store tray reference
         self.setWindowTitle("Volume Knob")
         self.setFixedSize(100, 100)
         # Update window flags to include Tool flag which hides from taskbar
@@ -64,10 +65,8 @@ class MainWindow(QMainWindow):
         self.update()
         
     def show_mixer(self):
-        print("Opening mixer window")  # Debug print
         if not self.mixer_window:
-            print("Creating new mixer window")  # Debug print
-            self.mixer_window = MixerWindow()
+            self.mixer_window = MixerWindow(self, self.tray)  # Pass both self and tray
         self.mixer_window.show()
         
     def paintEvent(self, event):
