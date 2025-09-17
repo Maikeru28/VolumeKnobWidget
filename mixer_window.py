@@ -1,8 +1,11 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                          QSlider, QFrame, QPushButton, QCheckBox)
+                          QSlider, QFrame, QPushButton, QCheckBox, QComboBox)
 from PyQt6.QtCore import Qt, QCoreApplication
-from PyQt6.QtGui import QIcon
-from volume_controller import VolumeController
+from pycaw.pycaw import AudioUtilities, IMMDeviceEnumerator
+from ctypes import cast, POINTER
+from comtypes import CLSCTX_ALL
+
+
 
 class MixerWindow(QWidget):
     def __init__(self, main_window, tray):
@@ -10,15 +13,14 @@ class MixerWindow(QWidget):
         self.main_window = main_window
         self.tray = tray
         self.setWindowTitle("Volume Mixer")
-        self.setFixedWidth(300)
+        self.setFixedWidth(400)  # Increased window width
         # Add Tool flag to prevent taskbar entry
         self.setWindowFlags(
             Qt.WindowType.Window | 
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.Tool
         )
-        self.volume_controller = VolumeController()
-        self.apps_layout = None  # Store reference to apps layout
+        self.volume_controller = self.main_window.volume_controller
         self.init_ui()
     
     def closeEvent(self, event):
@@ -34,49 +36,93 @@ class MixerWindow(QWidget):
         
     def init_ui(self):
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(15, 15, 15, 15)  # Increased margins
+        main_layout.setSpacing(10)
         self.setLayout(main_layout)
+
+        # Device selector row
+        device_row = QHBoxLayout()
+        device_row.setContentsMargins(0, 0, 0, 0)
         
-        # Create a container for app sliders that we can refresh
-        apps_container = QWidget()
-        self.apps_layout = QVBoxLayout(apps_container)
+        device_label = QLabel("Output Device:")
+        device_label.setFixedWidth(120)
+        device_label.setStyleSheet("color: white;")
         
-        # Updated stylesheet with improved circular handle
-        self.setStyleSheet("""
-            QWidget {
+        self.device_combo = QComboBox()
+        self.device_combo.setMinimumWidth(230)
+        self.device_combo.setMaxVisibleItems(10)  # Show up to 10 items in dropdown
+        self.device_combo.setStyleSheet("""
+            QComboBox {
                 background-color: #333333;
                 color: white;
-            }
-            QSlider {
-                height: 24px;  /* Ensure enough vertical space for the handle */
-            }
-            QSlider::handle:horizontal {
-                background: #00dfab;
-                border: 2px solid #222222;
-                width: 11px;
-                height: 11px;
-                margin: -6px 0;
-                border-radius: 7px;  /* Slightly larger than half width/height */
-            }
-            QSlider::groove:horizontal {
-                background: #333333;
-                border: 2px solid #222222;
-                height: 4px;
-                border-radius: 3px;
-            }
-            QPushButton {
-                background-color: #222222;
                 border: none;
-                padding: 4px 15px;
                 border-radius: 3px;
+                padding: 5px;
+                selection-background-color: #00dfab;
             }
-            QPushButton:hover {
-                background-color: #00dfab;
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
             }
-            QCheckBox {
+            QComboBox::down-arrow {
+                image: none;
+                border: none;
+                background: #00dfab;
+                width: 8px;
+                height: 8px;
+                border-radius: 4px;
+                margin-right: 8px;
+            }
+            QComboBox:on {  /* when the combo box is open */
+                border-bottom-left-radius: 5px;
+                border-bottom-right-radius: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #333333;
                 color: white;
+                selection-background-color: #00dfab;
+                selection-color: white;
+                border: none;
+                border-bottom-left-radius: 3px;
+                border-bottom-right-radius: 3px;
+                padding: 5px;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 25px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #444444;
             }
         """)
         
+        # Populate devices
+        devices = self.volume_controller.get_output_devices()
+        self.device_combo.clear()
+        for name, dev_id in devices:
+            self.device_combo.addItem(name, dev_id)
+
+        self.device_combo.currentIndexChanged.connect(self._on_device_selected)
+        
+        # Set current device if available
+        if self.device_combo.count() > 0:
+            self.device_combo.setCurrentIndex(0)
+        
+        device_row.addWidget(device_label)
+        device_row.addWidget(self.device_combo)
+        device_row.addStretch()
+        
+        main_layout.addLayout(device_row)
+        
+        # Add separator
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setStyleSheet("background-color: #444444;")
+        main_layout.addWidget(line)
+        
+        # Apps container
+        apps_container = QWidget()
+        self.apps_layout = QVBoxLayout(apps_container)
+        self.apps_layout.setContentsMargins(0, 0, 0, 0)
         self.populate_apps()
         main_layout.addWidget(apps_container)
         
@@ -183,3 +229,19 @@ class MixerWindow(QWidget):
 
     def toggle_position_lock(self, state):
         self.main_window.is_position_locked = bool(state)
+
+    def change_output_device(self, index):
+        device_id = self.device_combo.currentData()  # Get stored device_id
+        if device_id and self.volume_controller.switch_output_device(device_id):
+            self.refresh_apps()
+
+    def _on_device_selected(self, index: int):
+        dev_id = self.device_combo.currentData()
+        if not dev_id:
+            return
+        if self.volume_controller.select_output_device(dev_id):
+            print(f"DEBUG: Controlling selected device id={dev_id}")
+        else:
+            print(f"DEBUG: Failed to control device id={dev_id}")
+        # If you still want to attempt changing the system default (optional):
+        # self.volume_controller.set_default_output_device(dev_id)
