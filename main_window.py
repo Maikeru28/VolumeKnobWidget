@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         if not self.mixer_window:
             self.mixer_window = MixerWindow(self, self.tray)  # Pass both self and tray
         self.mixer_window.show()
+        self.mixer_window.update_active_device_label()  # Update the active device label
         
     def paintEvent(self, event):
         painter = QPainter(self)
